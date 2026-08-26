@@ -1,0 +1,7 @@
+tools/archives/
+tools/dorado-*/
+tools/minimap2-*/
+tools/modkit-*/
+bin/
+*.log
+*.tmp

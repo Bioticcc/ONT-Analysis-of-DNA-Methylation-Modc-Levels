@@ -13,9 +13,9 @@ mkdir -p \
     "${SAMPLE_OUTPUT}/00_manifests" \
     "${SAMPLE_OUTPUT}/01_alignment" \
     "${SAMPLE_OUTPUT}/02_alignment_qc" \
-    "${SAMPLE_OUTPUT}/03_modkit" \
-    "${SAMPLE_OUTPUT}/04_methylation_summary" \
-    "${SAMPLE_OUTPUT}/05_gap_analysis" \
+    "${SAMPLE_OUTPUT}/03_ont_qc_coverage" \
+    "${SAMPLE_OUTPUT}/04_methylation" \
+    "${SAMPLE_OUTPUT}/05_methylation_exploration" \
     "${SAMPLE_OUTPUT}/logs" \
     "${SAMPLE_OUTPUT}/tmp"
 

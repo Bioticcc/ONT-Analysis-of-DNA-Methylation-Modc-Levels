@@ -82,6 +82,19 @@ WINDOW_METHYLATION="${STAGE04_DIR}/window_methylation_levels.tsv.gz"
 CPG_BEDMETHYL="${STAGE04_DIR}/cpg_5mc_5hmc.bed.gz"
 CHROMOSOME_COVERAGE="${STAGE03_DIR}/chromosome_coverage.tsv"
 WINDOW_COVERAGE="${STAGE03_DIR}/window_coverage.tsv.gz"
+ALIGNMENT_STATS="${STAGE03_DIR}/alignment_stats.txt"
+ALIGNMENT_FLAGSTAT="${STAGE03_DIR}/alignment_flagstat.txt"
+COVERAGE_SUMMARY="${STAGE03_DIR}/coverage_summary.tsv"
+STAGE02_SUMMARY="${SAMPLE_OUTPUT}/02_alignment_qc/${SAMPLE_ID}.alignment_summary.txt"
+
+shopt -s nullglob
+ONT_RUN_REPORT_CANDIDATES=("${RUN_ROOT}"/report_*.html)
+shopt -u nullglob
+if [[ ${#ONT_RUN_REPORT_CANDIDATES[@]} -ne 1 ]]; then
+    log "ERROR: expected exactly one ONT instrument HTML report in ${RUN_ROOT}; found ${#ONT_RUN_REPORT_CANDIDATES[@]}"
+    exit 1
+fi
+ONT_RUN_REPORT="${ONT_RUN_REPORT_CANDIDATES[0]}"
 
 #---------------------------------------------->
 
@@ -128,6 +141,7 @@ fi
 required_r_packages=(
     data.table
     ggplot2
+    ggrepel
     scales
     patchwork
     GenomicRanges
@@ -164,6 +178,11 @@ required_inputs=(
     "${CHROMOSOME_COVERAGE}"
     "${WINDOW_COVERAGE}"
     "${WINDOW_COVERAGE}.tbi"
+    "${ALIGNMENT_STATS}"
+    "${ALIGNMENT_FLAGSTAT}"
+    "${COVERAGE_SUMMARY}"
+    "${STAGE02_SUMMARY}"
+    "${ONT_RUN_REPORT}"
     "${METHYLATION_GENCODE_GFF3}"
     "${METHYLATION_CPG_ISLANDS_JSON}"
     "${METHYLATION_CCRE_TABLE}"
@@ -194,11 +213,12 @@ fi
 log "Sample: ${SAMPLE_ID}"
 log "Stage 03 input: ${STAGE03_DIR}"
 log "Stage 04 input: ${STAGE04_DIR}"
+log "ONT instrument report: ${ONT_RUN_REPORT}"
 log "Output directory: ${OUTPUT_DIR}"
 log "R: $("${RSCRIPT_BIN}" --version 2>&1 | head -n 1)"
 log "Feature thresholds: valid_call_depth>=${EXPLORATION_MIN_VALID_COVERAGE}; CpGs_per_plotted_region>=${EXPLORATION_MIN_FEATURE_CPGS}"
 log "Extreme-window table size per ranking: ${EXPLORATION_TOP_WINDOW_COUNT}"
-log "Figure formats: PDF and ${EXPLORATION_PLOT_DPI}-DPI PNG"
+log "Figure format: PDF (the HTML dashboard embeds relative PDF previews)"
 log "GENCODE annotation: ${METHYLATION_GENCODE_GFF3}"
 log "CpG islands: ${METHYLATION_CPG_ISLANDS_JSON}"
 log "cCREs: ${METHYLATION_CCRE_TABLE}"
@@ -232,14 +252,16 @@ FIGURE_STEMS=(
     11_Window_5mC_vs_5hmC_Scatter
     12_Window_Methylation_Heatmap
     13_Extreme_Window_Regional_Profiles
+    13A_Regional_Profiles_Ranks_3_to_4
+    13B_Regional_Profiles_Ranks_5_to_6
+    13C_Regional_Profiles_Ranks_7_to_8
+    13D_Regional_Profiles_Ranks_9_to_10
     14_Feature_Methylation_5mC_Boxplot
     15_Feature_Methylation_5hmC_Boxplot
     16_Feature_Methylation_5hmC_Boxplot_Zoom
     17_CpG_Feature_Coverage_Violin
     18_CpG_Feature_Length_vs_Measured_CpGs
-    19_CpG_Island_vs_5UTR_5mC
-    20_CpG_Island_vs_5UTR_5hmC
-    21_Feature_Weighted_Methylation_Summary
+    19_Feature_Weighted_Methylation_Summary
 )
 TABLE_FILES=(
     global_plot_data.tsv
@@ -251,6 +273,10 @@ TABLE_FILES=(
     window_plot_data.tsv.gz
     extreme_methylation_windows.tsv
     extreme_window_profile_data.tsv.gz
+    13A_Regional_Profiles_Ranks_3_to_4_plot_data.tsv.gz
+    13B_Regional_Profiles_Ranks_5_to_6_plot_data.tsv.gz
+    13C_Regional_Profiles_Ranks_7_to_8_plot_data.tsv.gz
+    13D_Regional_Profiles_Ranks_9_to_10_plot_data.tsv.gz
     feature_annotation_counts.tsv
     feature_region_methylation.tsv.gz
     feature_methylation_summary.tsv
@@ -267,13 +293,14 @@ outputs_validate() {
     [[ "${COMPLETION_MARKER}" -nt "${STAGE04_MARKER}" ]] || return 1
     [[ "${COMPLETION_MARKER}" -nt "${R_SCRIPT}" ]] || return 1
     [[ -s "${OUTPUT_DIR}/methylation_exploration_report.txt" ]] || return 1
+    [[ -s "${OUTPUT_DIR}/ont_methylation_qc_report.html" ]] || return 1
     [[ -s "${OUTPUT_DIR}/R_session_info.txt" ]] || return 1
     grep -q 'single-sample descriptive analysis' "${OUTPUT_DIR}/methylation_exploration_report.txt" || return 1
+    grep -q '<title>ONT sequencing and methylation QC report</title>' \
+        "${OUTPUT_DIR}/ont_methylation_qc_report.html" || return 1
     for stem in "${FIGURE_STEMS[@]}"; do
         [[ -s "${OUTPUT_DIR}/figures/${stem}.pdf" ]] || return 1
-        [[ -s "${OUTPUT_DIR}/figures/${stem}.png" ]] || return 1
         [[ "$(head -c 4 "${OUTPUT_DIR}/figures/${stem}.pdf")" == '%PDF' ]] || return 1
-        [[ "$(head -c 8 "${OUTPUT_DIR}/figures/${stem}.png" | od -An -tx1 | tr -d ' \n')" == '89504e470d0a1a0a' ]] || return 1
     done
     for table_file in "${TABLE_FILES[@]}"; do
         [[ -s "${OUTPUT_DIR}/tables/${table_file}" ]] || return 1
@@ -358,6 +385,11 @@ TMPDIR="${WORK_DIR}" "${RSCRIPT_BIN}" "${R_SCRIPT}" \
     --window-methylation "${WINDOW_METHYLATION}" \
     --chromosome-coverage "${CHROMOSOME_COVERAGE}" \
     --window-coverage "${WINDOW_COVERAGE}" \
+    --alignment-stats "${ALIGNMENT_STATS}" \
+    --alignment-flagstat "${ALIGNMENT_FLAGSTAT}" \
+    --coverage-summary "${COVERAGE_SUMMARY}" \
+    --stage02-summary "${STAGE02_SUMMARY}" \
+    --instrument-report "${ONT_RUN_REPORT}" \
     --bedmethyl "${CPG_BEDMETHYL}" \
     --gff3 "${METHYLATION_GENCODE_GFF3}" \
     --cpg-islands "${METHYLATION_CPG_ISLANDS_JSON}" \
@@ -377,12 +409,10 @@ TMPDIR="${WORK_DIR}" "${RSCRIPT_BIN}" "${R_SCRIPT}" \
 # Verifies the complete work product before promoting any Stage 05 result.
 
 for stem in "${FIGURE_STEMS[@]}"; do
-    for extension in pdf png; do
-        if [[ ! -s "${WORK_DIR}/figures/${stem}.${extension}" ]]; then
-            log "ERROR: missing Stage 05 figure: ${stem}.${extension}"
-            exit 1
-        fi
-    done
+    if [[ ! -s "${WORK_DIR}/figures/${stem}.pdf" ]]; then
+        log "ERROR: missing Stage 05 figure: ${stem}.pdf"
+        exit 1
+    fi
 done
 for table_file in "${TABLE_FILES[@]}"; do
     if [[ ! -s "${WORK_DIR}/tables/${table_file}" ]]; then
@@ -390,7 +420,7 @@ for table_file in "${TABLE_FILES[@]}"; do
         exit 1
     fi
 done
-for work_file in methylation_exploration_report.txt R_session_info.txt; do
+for work_file in methylation_exploration_report.txt ont_methylation_qc_report.html R_session_info.txt; do
     if [[ ! -s "${WORK_DIR}/${work_file}" ]]; then
         log "ERROR: missing Stage 05 work product: ${work_file}"
         exit 1
@@ -408,6 +438,7 @@ log "Promoting validated Stage 05 figures and plot-data tables"
 mv "${WORK_DIR}/figures" "${OUTPUT_DIR}/figures"
 mv "${WORK_DIR}/tables" "${OUTPUT_DIR}/tables"
 mv "${WORK_DIR}/methylation_exploration_report.txt" "${OUTPUT_DIR}/methylation_exploration_report.txt"
+mv "${WORK_DIR}/ont_methylation_qc_report.html" "${OUTPUT_DIR}/ont_methylation_qc_report.html"
 mv "${WORK_DIR}/R_session_info.txt" "${OUTPUT_DIR}/R_session_info.txt"
 
 #---------------------------------------------->
@@ -426,10 +457,11 @@ MANIFEST_FILE="${MANIFEST_DIR}/${SAMPLE_ID}.stage05.${PIPELINE_RUN_STAMP}.manife
     printf 'metadata\tmin_valid_coverage\t%s\n' "${EXPLORATION_MIN_VALID_COVERAGE}"
     printf 'metadata\tmin_feature_cpgs\t%s\n' "${EXPLORATION_MIN_FEATURE_CPGS}"
     printf 'metadata\ttop_window_count\t%s\n' "${EXPLORATION_TOP_WINDOW_COUNT}"
-    printf 'metadata\tfigure_formats\tPDF,PNG\n'
+    printf 'metadata\tfigure_formats\tPDF\n'
     printf 'metadata\tplot_dpi\t%s\n' "${EXPLORATION_PLOT_DPI}"
     printf 'input\tstage03_marker\t%s\n' "${STAGE03_MARKER}"
     printf 'input\tstage04_marker\t%s\n' "${STAGE04_MARKER}"
+    printf 'input\tont_instrument_report\t%s\n' "${ONT_RUN_REPORT}"
     printf 'input\tcpg_bedmethyl\t%s\n' "${CPG_BEDMETHYL}"
     printf 'annotation\tgencode_gff3\t%s\n' "${METHYLATION_GENCODE_GFF3}"
     printf 'annotation\tcpg_islands\t%s\n' "${METHYLATION_CPG_ISLANDS_JSON}"
@@ -446,6 +478,7 @@ MANIFEST_FILE="${MANIFEST_DIR}/${SAMPLE_ID}.stage05.${PIPELINE_RUN_STAMP}.manife
     printf 'output_bytes\tfigures\t%s\n' "$(du -sb "${OUTPUT_DIR}/figures" | awk '{print $1}')"
     printf 'output_bytes\ttables\t%s\n' "$(du -sb "${OUTPUT_DIR}/tables" | awk '{print $1}')"
     printf 'output_bytes\tmethylation_exploration_report.txt\t%s\n' "$(stat -c '%s' "${OUTPUT_DIR}/methylation_exploration_report.txt")"
+    printf 'output_bytes\tont_methylation_qc_report.html\t%s\n' "$(stat -c '%s' "${OUTPUT_DIR}/ont_methylation_qc_report.html")"
     printf 'output_bytes\tR_session_info.txt\t%s\n' "$(stat -c '%s' "${OUTPUT_DIR}/R_session_info.txt")"
 } > "${MANIFEST_FILE}.partial.${PIPELINE_RUN_STAMP}"
 mv "${MANIFEST_FILE}.partial.${PIPELINE_RUN_STAMP}" "${MANIFEST_FILE}"
@@ -485,6 +518,7 @@ esac
 
 log "Stage 05 complete"
 log "Exploration report: ${OUTPUT_DIR}/methylation_exploration_report.txt"
+log "HTML QC report: ${OUTPUT_DIR}/ont_methylation_qc_report.html"
 log "Figures: ${OUTPUT_DIR}/figures"
 log "Plot-data tables: ${OUTPUT_DIR}/tables"
 log "SixBase figure mapping: ${OUTPUT_DIR}/tables/sixbase_figure_mapping.tsv"

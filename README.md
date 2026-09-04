@@ -92,14 +92,19 @@ chromosome, and 100 kb tables use weighted call counts rather than averaging
 site percentages. Use `./scripts/04_methylation_analysis.sh --check-only`
 before launching the full Modkit analysis.
 
-Stage 05 turns the validated Stage 03/04 tables into publication-ready PDF and
-PNG figures plus the exact TSV data behind each plot. It includes the
-single-sample-compatible global, coverage, genomic-feature, scatter, regional,
-heatmap, and Manhattan-style figure families used in SixBase. The SixBase mm10
+Stage 05 turns the validated Stage 03/04 tables into publication-ready PDF
+figures, the exact TSV data behind each plot, and a navigable HTML QC dashboard.
+The dashboard consolidates alignment, sequencing-coverage, modification-call,
+and methylation QC and links the original MinKNOW instrument report. It includes
+the single-sample-compatible global, coverage, genomic-feature, scatter,
+regional, heatmap, and Manhattan-style figure families used in SixBase. The SixBase mm10
 GENCODE, CpG-island, cCRE, and intergenic annotations are read in place and
 recorded in the manifest. Use
 `./scripts/05-1_methylation_exploration.sh --check-only` to validate all inputs,
 indexes, annotations, R packages, and settings without generating figures.
+
+Open `05_methylation_exploration/ont_methylation_qc_report.html` for the full
+QC report after Stage 05 completes.
 
 Correlation, PCA, DMR/DhMR significance, differential heatmaps, and enrichment
 are intentionally not generated for this one-sample dataset; Stage 05 records

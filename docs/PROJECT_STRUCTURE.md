@@ -352,7 +352,10 @@ Inputs:
 
 Required behavior:
 
-- Produce both PDF and 300-DPI PNG versions of every figure.
+- Produce publication-quality PDF versions of every figure.
+- Produce a navigable HTML QC dashboard that consolidates Stage 02 alignment,
+  Stage 03 sequencing coverage, Stage 04 modification calls, Stage 05 figures,
+  exact plot-data links, provenance, and the original MinKNOW run report.
 - Write the exact data used by each figure as TSV or compressed TSV.
 - Preserve coverage-weighted 5mC and 5hmC calculations and keep sequencing
   depth distinct from valid modification-call depth.
@@ -370,9 +373,10 @@ Canonical outputs:
 ```text
 05_methylation_exploration/
 ├── .stage05.complete
+├── ont_methylation_qc_report.html
 ├── methylation_exploration_report.txt
 ├── R_session_info.txt
-├── figures/                       PDF and PNG copies of 21 figures
+├── figures/                       Publication-quality PDF figures
 └── tables/                        15 plot-data/provenance tables
 ```
 
@@ -380,13 +384,13 @@ The primary figure groups are global CpG composition and levels, CpG coverage
 and site distributions, chromosome and 100 kb window summaries, sequencing
 versus valid-call coverage, descriptive genome-wide tracks, extreme-window
 profiles, genomic-feature methylation boxplots, CpG-island/shore/shelf coverage
-and length plots, CpG-island versus 5' UTR views, and a weighted feature-class
-summary. `sixbase_figure_mapping.tsv` identifies directly reproduced,
+and length plots, and a weighted feature-class summary.
+`sixbase_figure_mapping.tsv` identifies directly reproduced,
 single-sample analogue, and scientifically unavailable SixBase families.
 
-Completion gate: all 21 PDF/PNG pairs have valid file signatures, all 15 tables
-and the report/session record are nonempty, and the mapping table records the
-six multi-sample or differential families as unavailable.
+Completion gate: all expected PDFs have valid file signatures, the HTML and
+plain-text reports, all 15 tables, and the session record are nonempty, and the
+mapping table records the six multi-sample or differential families as unavailable.
 
 ## 5. Script engineering rules
 

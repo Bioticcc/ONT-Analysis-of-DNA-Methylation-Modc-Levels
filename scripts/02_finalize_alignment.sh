@@ -3,7 +3,7 @@ set -Eeuo pipefail
 
 
 #---------------------------------------------->
-# Initializes the project and loads the shared paths, settings, logging, locking, and validation functions.
+# Initializes the project, finding where the existing files are.
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd -- "${SCRIPT_DIR}/.." && pwd)"
@@ -17,7 +17,7 @@ source "${SCRIPT_DIR}/lib/pipeline_common.sh"
 
 
 #---------------------------------------------->
-# Sets the locations of the Stage 01 chunks, Stage 02 outputs, manifests, temporary files, and logs.
+# Sets the locations of the Stage 01 chunks, Stage 02 outputs, log files, etc.
 
 INPUT_BAM_DIR="${INPUT_ROOT}/reads/${SAMPLE_ID}/bam_pass"
 CHUNK_DIR="${SAMPLE_OUTPUT}/01_alignment/aligned_unsorted_chunks"
@@ -57,7 +57,7 @@ QC_SUMMARY="${QC_DIR}/${SAMPLE_ID}.alignment_summary.txt"
 
 
 #---------------------------------------------->
-# Records the sample, paths, tool version, sort resources, disk space, and memory in the run log.
+# Records the sample ID, Aligned chunk directory, final BAMs, etc.
 
 log "Sample: ${SAMPLE_ID}"
 log "Aligned chunk directory: ${CHUNK_DIR}"
@@ -98,7 +98,7 @@ fi
 
 
 #---------------------------------------------->
-# Matches every source BAM to its expected aligned chunk and refuses to continue if any chunk is missing or unexpected.
+# Matches every source BAM to its expected aligned chunk and stops if any chunk is missing or unexpected.
 
 INPUT_BAMS=()
 missing=0
@@ -130,7 +130,7 @@ fi
 
 
 #---------------------------------------------->
-# Fully reads every aligned chunk, counts its records, and writes a per-chunk validation manifest before sorting.
+# Fully reads every aligned chunk, counts its records, and writes a validation log for each chunk before sorting.
 
 log "Fully decompressing all ${#INPUT_BAMS[@]} aligned chunks before the expensive sort"
 CHUNK_VALIDATION_FILE="${MANIFEST_DIR}/${SAMPLE_ID}.alignment_chunk_validation.tsv"
@@ -164,7 +164,7 @@ log "All chunks passed full-stream validation: total_records=${total_input_recor
 
 
 #---------------------------------------------->
-# Samples the first record of every chunk to confirm that the MM, ML, and MN modified-base tags are still present.
+# Checks the first record of every chunk to confirm that the modified-base tags are correct.
 
 log "Checking MM, ML, and MN modified-base tags in every aligned chunk"
 for input_bam in "${INPUT_BAMS[@]}"; do
@@ -183,7 +183,7 @@ log "Confirmed MM, ML, and MN modified-base tags in all aligned chunks"
 
 
 #---------------------------------------------->
-# Writes the ordered chunk list used by Samtools and checks whether an existing final BAM is newer than every input.
+# Writes the ordered chunk list used by Samtools and checks to make sure each sorted chunk has a new timestamp compared to its older, unsorted chunk.
 
 printf '%s\n' "${INPUT_BAMS[@]}" > "${BAM_LIST_FILE}"
 
@@ -284,7 +284,7 @@ mv "${manifest_partial}" "${MANIFEST_FILE}"
 
 
 #---------------------------------------------->
-# Creates a human-readable alignment summary containing the BAM header overview and Samtools flag statistics.
+# Creates an alignment summary containing the BAM header overview and Samtools flag statistics.
 
 summary_partial="${QC_SUMMARY}.partial.${BASHPID}"
 {

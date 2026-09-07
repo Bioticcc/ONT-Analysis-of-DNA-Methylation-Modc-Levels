@@ -177,7 +177,7 @@ fi
 
 
 #---------------------------------------------->
-# Writes source manifest
+# Creates a list of each source BAM file and its size.
 
 manifest_partial="${MANIFEST_DIR}/${SAMPLE_ID}.source_pass_bams.tsv.partial.${BASHPID}"
 {
@@ -207,7 +207,7 @@ fi
 
 
 #---------------------------------------------->
-# Initializes counters used to report how many BAM chunks were newly aligned, skipped, and expected in total.
+# Counters for completed, skipped, and total chunks.
 
 completed=0
 skipped=0
@@ -218,7 +218,7 @@ total=${#SOURCE_BAMS[@]}
 
 
 #---------------------------------------------->
-# Defines a function that checks basic BAM structure, reads the entire BAM, and confirms that it contains records.
+# Function that defines a BAM and validates it.
 
 FULL_VALIDATED_RECORD_COUNT=""
 full_validate_aligned_bam() {
@@ -238,7 +238,7 @@ full_validate_aligned_bam() {
 
 
 #---------------------------------------------->
-# Defines a function that writes a completion marker containing the BAM validation method, record count, size, and timestamp.
+# Function that helps us log completed BAM chunks with corresponding info.
 
 write_chunk_marker() {
     local marker="$1"
@@ -261,7 +261,7 @@ write_chunk_marker() {
 
 
 #---------------------------------------------->
-# Defines a function that checks whether a completion marker still matches the current BAM's size and modification time.
+# Function that checks if a BAM file matches its log from the above function.
 
 marker_matches_bam() {
     local marker="$1"
@@ -281,14 +281,15 @@ marker_matches_bam() {
 
 
 #---------------------------------------------->
-# Processes each source BAM individually and gives it a matching unsorted aligned output name and completion-marker name.
+# MAIN ALIGNMENT LOOP: Aligns each source BAM to the ref genome and validates before moving onto the next.
 
+# Primary loop, we begin processing each BAM stored in our SOURCE_BAMS array.
 for source_bam in "${SOURCE_BAMS[@]}"; do
     source_name="$(basename -- "${source_bam}" .bam)"
     output_bam="${CHUNK_DIR}/${source_name}.aligned.unsorted.bam"
     complete_marker="${output_bam}.complete"
 
-    # Reuses an existing BAM when it is nonempty, its marker still matches it, and Samtools confirms its basic structure.
+    # Reuses an existing BAM when it is nonempty, its marker still matches it, and Samtools confirms its validity.
     if [[ -s "${output_bam}" ]] \
         && marker_matches_bam "${complete_marker}" "${output_bam}" \
         && "${SAMTOOLS_BIN}" quickcheck "${output_bam}"; then
@@ -297,7 +298,7 @@ for source_bam in "${SOURCE_BAMS[@]}"; do
         continue
     fi
 
-    # Fully validates an existing BAM whose marker is missing or outdated, then creates a new marker if the BAM is valid.
+    # If BAM exists already, but marker is invalid then we remake it and validate.
     if [[ -s "${output_bam}" ]]; then
         log "FULL CHECK [$((completed + skipped + 1))/${total}]: legacy or changed $(basename -- "${output_bam}")"
         if full_validate_aligned_bam "${output_bam}"; then
@@ -307,7 +308,7 @@ for source_bam in "${SOURCE_BAMS[@]}"; do
             continue
         fi
 
-        # Moves a failed existing BAM and its marker into quarantine so the data is preserved before realignment.
+        # If we fail to remake the marker, move the possibly corrupted BAM into quarentine.
         invalid_dir="${STALE_DIR}/${PIPELINE_RUN_STAMP}/invalid_completed_chunks"
         mkdir -p "${invalid_dir}"
         log "QUARANTINE: full-stream validation failed for ${output_bam}"
@@ -318,7 +319,7 @@ for source_bam in "${SOURCE_BAMS[@]}"; do
         log "Archived invalid chunk without deleting it: ${invalid_dir}"
     fi
 
-    # Aligns the current modBAM to the GRCm38p6 reference with Dorado and writes to a temporary unsorted BAM.
+    # Aligns the current modBAM to the ref genome with dorado.
     output_partial="${output_bam}.partial.${BASHPID}.bam"
     log "START [$((completed + skipped + 1))/${total}]: $(basename -- "${source_bam}")"
     log "RUN: nice -n 5 dorado aligner --no-sort -t ${ALIGNMENT_THREADS} --mm2-opts '-x lr:hq -Y' <mmi> <bam>"
@@ -359,7 +360,7 @@ done
 
 
 #---------------------------------------------->
-# Reports the final chunk totals and identifies script 02 as the next pipeline stage.
+# Reports finall completion, then outputs script 02's location and the next step.
 
 log "Alignment chunk stage complete: newly completed=${completed}, previously complete=${skipped}, total=${total}"
 log "Next step: ${PROJECT_ROOT}/scripts/02_finalize_alignment.sh"
